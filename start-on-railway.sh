@@ -2,17 +2,20 @@
 # Bootstrap script for Hermes Agent on Railway.
 # Writes a minimal config.yaml on first boot, then runs the gateway.
 # Invoked via Railway "Custom Start Command":
-#   /init /opt/hermes/docker/main-wrapper.sh sh /opt/hermes/start-on-railway.sh
+#   sh -c "chown -R 10000:10000 /opt/data; exec /init /opt/hermes/docker/main-wrapper.sh sh /opt/hermes/start-on-railway.sh"
 set -e
 
 CFG="${HERMES_HOME:-/opt/data}/config.yaml"
+SEED_VERSION="2"
+SEED_MARKER="${HERMES_HOME:-/opt/data}/.bootstrap-seed-v${SEED_VERSION}"
 
-if [ ! -f "$CFG" ]; then
-    echo "[start-on-railway] Seeding $CFG"
+# Force re-seed when bumping SEED_VERSION (config schema changed).
+if [ ! -f "$SEED_MARKER" ]; then
+    echo "[start-on-railway] Seeding $CFG (v${SEED_VERSION})"
     cat > "$CFG" <<'YAML'
 model:
   default: gpt-5
-  provider: openai
+  provider: openai-api
 terminal:
   backend: local
   timeout: 180
@@ -29,8 +32,9 @@ display:
 approvals:
   mode: manual
 YAML
+    touch "$SEED_MARKER"
 else
-    echo "[start-on-railway] $CFG already exists, skipping seed"
+    echo "[start-on-railway] config seed v${SEED_VERSION} already applied, leaving $CFG alone"
 fi
 
 exec hermes gateway run
